@@ -72,12 +72,12 @@ class Show(db.Model):
     __tablename__ = 'shows'
 
     id = db.Column(db.Integer, primary_key=True)
-    # show startime in datetime
+    # show star_time in datetime
     show_date = db.Column(db.DateTime(), nullable=True)
     artist_id = db.Column(db.Integer, db.ForeignKey('artists.id'), nullable=False)
     venue_id = db.Column(db.Integer, db.ForeignKey('venues.id'), nullable=False)
 
-# Avoid data duplication for in venue and artist relations
+# Avoid data duplication in venue and artist relations (3rd nf)
 class Location(db.Model):
     __tablename__ = 'locations'
 
@@ -117,32 +117,14 @@ def index():
 @app.route('/venues')
 def venues():
   # num_upcoming_shows should be aggregated based on number of upcoming shows per venue.
-  venues= Venue.query.order_by('id').all()
+  venues = Location.query.all()
+  for venue_location in venues:
+    venue_location.venues_list = Venue.query.filter_by(location_id=venue_location.id).order_by('id').all()
+  
   now=datetime.now()
   upcoming_shows_count=0
-  upcoming_shows_count=Show.query.filter(now < Show.show_date).count()
-  venue_locations = Location.query.order_by('id').all()
-  data=[{
-    "city": "San Francisco",
-    "state": "CA",
-    "venues": [{
-      "id": 1,
-      "name": "The Musical Hop",
-      "num_upcoming_shows": 0,
-    }, {
-      "id": 3,
-      "name": "Park Square Live Music & Coffee",
-      "num_upcoming_shows": 1,
-    }]
-  }, {
-    "city": "New York",
-    "state": "NY",
-    "venues": [{
-      "id": 2,
-      "name": "The Dueling Pianos Bar",
-      "num_upcoming_shows": 0,
-    }]
-  }]
+  upcoming_shows_count=Show.query.filter(Show.show_date < now).count()
+  
   return render_template('pages/venues.html', areas=venues, num_upcoming_shows=upcoming_shows_count)
 
 @app.route('/venues/search', methods=['POST'])
@@ -150,17 +132,18 @@ def search_venues():
   # TODO: implement search on artists with partial string search. Ensure it is case-insensitive.
   # seach for Hop should return "The Musical Hop".
   # search for "Music" should return "The Musical Hop" and "Park Square Live Music & Coffee"
-  # session.query(User).filter(User.name.like('e%'))
-  # search_venue = db.session.query(Venue).filter(Venue.name.like())
+  # See https://docs.sqlalchemy.org/en/14/orm/query.html
+  # Thanks to https://stackoverflow.com/questions/3325467/
+  search_term=request.form.get('search_term', '')
+  search = "%{}%".format(search_term)
+  venues = Venue.query.filter(Venue.name.like(search))
+  count = len(venues.all())
+
   response={
-    "count": 1,
-    "data": [{
-      "id": 2,
-      "name": "The Dueling Pianos Bar",
-      "num_upcoming_shows": 0,
-    }]
+    "count": count,
+    "data": venues
   }
-  return render_template('pages/search_venues.html', results=response, search_term=request.form.get('search_term', ''))
+  return render_template('pages/search_venues.html', results=response)
 
 @app.route('/venues/<int:venue_id>')
 def show_venue(venue_id):
@@ -185,18 +168,13 @@ def create_venue_form():
 def create_venue_submission():
   # TODO: insert form data as a new Venue record in the db, instead
   form = VenueForm(request.form)
-  location = Location(
-    city=form.city.data,
-    state=form.state.data
-  )
-  db.session.add(location)
+  venue_location = Location(city=form.city.data, state=form.state.data)
+  db.session.add(venue_location)
   db.session.commit()
 
   # get this inserted id from database
-  location_id = (Location.query.get(location.id)).id
-  # add the venue
   venue = Venue(
-    name=form.name.data, location_id= location_id,
+    name=form.name.data, location_id= venue_location.id,
     address=form.address.data, phone=form.phone.data, image_link=form.image_link.data,
     venue_genres=form.genres.data, facebook_link=form.facebook_link.data,
     venue_website=form.website_link.data, seeking_talents=form.seeking_talent.data,
@@ -241,16 +219,6 @@ def delete_venue(venue_id):
 def artists():
   # TODO: replace with real data returned from querying the database
   data = Artist.query.order_by('id').all()
-  data_=[{
-    "id": 4,
-    "name": "Guns N Petals",
-  }, {
-    "id": 5,
-    "name": "Matt Quevedo",
-  }, {
-    "id": 6,
-    "name": "The Wild Sax Band",
-  }]
   return render_template('pages/artists.html', artists=data)
 
 @app.route('/artists/search', methods=['POST'])
@@ -258,22 +226,24 @@ def search_artists():
   # TODO: implement search on artists with partial string search. Ensure it is case-insensitive.
   # seach for "A" should return "Guns N Petals", "Matt Quevado", and "The Wild Sax Band".
   # search for "band" should return "The Wild Sax Band".
+  # See https://docs.sqlalchemy.org/en/14/orm/query.html
+  # Thanks to https://stackoverflow.com/questions/3325467/
+  search_term=request.form.get('search_term', '')
+  search = "%{}%".format(search_term)
+  artists = Artist.query.filter(Artist.name.like(search))
+  count = len(artists.all())
+
   response={
-    "count": 1,
-    "data": [{
-      "id": 4,
-      "name": "Guns N Petals",
-      "num_upcoming_shows": 0,
-    }]
+    "count": count,
+    "data": artists
   }
-  return render_template('pages/search_artists.html', results=response, search_term=request.form.get('search_term', ''))
+  return render_template('pages/search_artists.html', results=response)
 
 @app.route('/artists/<int:artist_id>')
 def show_artist(artist_id):
   # shows the artist page with the given artist_id
   # TODO: replace with real artist data from the artist table, using artist_id
   artist = Artist.query.get(artist_id)
-  #data = list(filter(lambda d: d['id'] == artist_id, [data1, data2, data3]))[0]
   data = artist
   return render_template('pages/show_artist.html', artist=data)
 
@@ -345,12 +315,16 @@ def create_artist_submission():
   # TODO: insert form data as a new Venue record in the db, instead
   # TODO: modify data to be the data object returned from db insertion
   form = ArtistForm(request.form)
+  artist_location = Location(city=form.city.data, state=form.state.data)
+  db.session.add(artist_location)
+  db.session.commit()
+
+  # get this inserted id from database add the venue
   artist = Artist(
-    name=form.name.data, city=form.city.data, state=form.state.data,
-    phone=form.phone.data, image_link=form.image_link.data,
+    name=form.name.data, phone=form.phone.data, image_link=form.image_link.data,
     artist_genres=form.genres.data, facebook_link=form.facebook_link.data,
     artist_website=form.website_link.data, seeking_venues=form.seeking_venue.data,
-    seeking_description=form.seeking_description.data
+    seeking_description=form.seeking_description.data, location_id=artist_location.id
     )
   db.session.add(artist)
   db.session.commit()
