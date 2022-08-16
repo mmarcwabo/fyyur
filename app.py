@@ -136,7 +136,8 @@ def venues():
 
     now = datetime.now()
     upcoming_shows_count = 0
-    upcoming_shows_count = Show.query.filter(Show.show_date < now).count()
+    upcoming_shows = Show.query.filter(Show.show_date < now).all()
+    upcoming_shows_count = len(upcoming_shows)
 
     return render_template('pages/venues.html', areas=venues, num_upcoming_shows=upcoming_shows_count)
 
@@ -165,9 +166,18 @@ def show_venue(venue_id):
     # shows the venue page with the given venue_id
     # TODO: replace with real venue data from the venues table, using venue_id
     venue = Venue.query.get(venue_id)
-    # upcoming_shows
-    # upcoming_shows_count
-    # past_shows_count
+    venue.city = Location.query.get(venue.location_id).city
+    venue.state = Location.query.get(venue.location_id).state
+
+    now = datetime.now()
+
+    venue.upcoming_shows = Show.query.filter(
+        Show.show_date < now, Show.venue_id == venue_id).all()
+    venue.upcoming_shows_count = len(venue.upcoming_shows)
+
+    venue.past_shows = Show.query.filter(
+        Show.show_date > now, Show.venue_id==venue_id).all()
+    venue.past_shows_count = len(venue.past_shows)
 
     return render_template('pages/show_venue.html', venue=venue)
 
@@ -307,14 +317,15 @@ def edit_artist_submission(artist_id):
     artist.image_link = form.image_link.data
     artist.genres = form.genres.data
     artist.facebook_link = form.facebook_link.data
-    artist.artist_website=form.website_link.data
-    artist.seeking_venues=form.seeking_venue.data
-    artist.seeking_description=form.seeking_description.data
+    artist.artist_website = form.website_link.data
+    artist.seeking_venues = form.seeking_venue.data
+    artist.seeking_description = form.seeking_description.data
     # Update artist location
-    artist_location = Location.query(Location).filter(Location.state == form.state.data and Location.city == form.city.data)
+    artist_location = Location.query().filter(Location.state == form.state.data,
+                                              Location.city == form.city.data).first()
     if artist_location:
-      artist.location_id = artist_location.id
-    
+        artist.location_id = artist_location.id
+
     db.session.commit()
 
     return redirect(url_for('show_artist', artist_id=artist_id))
@@ -350,22 +361,23 @@ def edit_venue_submission(venue_id):
     venue = Venue.query.get(venue_id)
     form = VenueForm(request.form)
 
-    venue.name=form.name.data
-    venue.location_id=venue_location.id
-    venue.address=form.address.data
-    venue.phone=form.phone.data
-    venue.image_link=form.image_link.data
-    venue.venue_genres=form.genres.data
-    venue.facebook_link=form.facebook_link.data
-    venue.venue_website=form.website_link.data
-    venue.seeking_talents=form.seeking_talent.data
-    venue.seeking_description=form.seeking_description.data
+    venue.name = form.name.data
+    venue.location_id = venue_location.id
+    venue.address = form.address.data
+    venue.phone = form.phone.data
+    venue.image_link = form.image_link.data
+    venue.venue_genres = form.genres.data
+    venue.facebook_link = form.facebook_link.data
+    venue.venue_website = form.website_link.data
+    venue.seeking_talents = form.seeking_talent.data
+    venue.seeking_description = form.seeking_description.data
 
     # Update artist location
-    venue_location = Location.query(Location).filter(Location.state == form.state.data and Location.city == form.city.data)
+    venue_location = Location.query(Location).filter(
+        Location.state == form.state.data and Location.city == form.city.data)
     if venue_location:
-      venue.location_id = venue_location.id
-    
+        venue.location_id = venue_location.id
+
     db.session.commit()
 
     return redirect(url_for('show_venue', venue_id=venue_id))
@@ -414,43 +426,15 @@ def create_artist_submission():
 def shows():
     # displays list of shows at /shows
     # TODO: replace with real venues data.
-    data = [{
-        "venue_id": 1,
-        "venue_name": "The Musical Hop",
-        "artist_id": 4,
-        "artist_name": "Guns N Petals",
-        "artist_image_link": "https://images.unsplash.com/photo-1549213783-8284d0336c4f?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=300&q=80",
-        "start_time": "2019-05-21T21:30:00.000Z"
-    }, {
-        "venue_id": 3,
-        "venue_name": "Park Square Live Music & Coffee",
-        "artist_id": 5,
-        "artist_name": "Matt Quevedo",
-        "artist_image_link": "https://images.unsplash.com/photo-1495223153807-b916f75de8c5?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=334&q=80",
-        "start_time": "2019-06-15T23:00:00.000Z"
-    }, {
-        "venue_id": 3,
-        "venue_name": "Park Square Live Music & Coffee",
-        "artist_id": 6,
-        "artist_name": "The Wild Sax Band",
-        "artist_image_link": "https://images.unsplash.com/photo-1558369981-f9ca78462e61?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=794&q=80",
-        "start_time": "2035-04-01T20:00:00.000Z"
-    }, {
-        "venue_id": 3,
-        "venue_name": "Park Square Live Music & Coffee",
-        "artist_id": 6,
-        "artist_name": "The Wild Sax Band",
-        "artist_image_link": "https://images.unsplash.com/photo-1558369981-f9ca78462e61?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=794&q=80",
-        "start_time": "2035-04-08T20:00:00.000Z"
-    }, {
-        "venue_id": 3,
-        "venue_name": "Park Square Live Music & Coffee",
-        "artist_id": 6,
-        "artist_name": "The Wild Sax Band",
-        "artist_image_link": "https://images.unsplash.com/photo-1558369981-f9ca78462e61?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=794&q=80",
-        "start_time": "2035-04-15T20:00:00.000Z"
-    }]
-    return render_template('pages/shows.html', shows=data)
+    shows = Show.query.all()
+
+    for show in shows:
+        show.venue_name = Venue.query.get(show.venue_id).name
+        show.artist_name = Artist.query.get(show.artist_id).name
+        show.artist_image_link = Artist.query.get(show.artist_id).image_link
+        show.start_time = Show.show_date
+
+    return render_template('pages/shows.html', shows=shows)
 
 
 @app.route('/shows/create')
