@@ -237,9 +237,14 @@ def delete_venue(venue_id):
         db.session.close()
     return redirect(url_for('index'))
 
-    # BONUS CHALLENGE: Implement a button to delete a Venue on a Venue Page, have it so that
-    # clicking that button delete it from the db then redirect the user to the homepage
-    # return None
+
+# BONUS CHALLENGE: Implement a button to delete a Venue on a Venue Page, have it so that
+# clicking that button delete it from the db then redirect the user to the homepage
+@app.route('/venues/<venue_id>/delete', methods=['GET'])
+def delete_venue_on_click(venue_id):
+  delete_venue(venue_id)
+  flash('Venue was successfully deleted!', 'error')
+  return redirect(url_for('index'))
 
 #  Artists
 #  ----------------------------------------------------------------
@@ -248,7 +253,7 @@ def delete_venue(venue_id):
 @app.route('/artists')
 def artists():
     # TODO: replace with real data returned from querying the database
-    data = Artist.query.order_by('id').all()
+    data = Artist.query.all()
     return render_template('pages/artists.html', artists=data)
 
 
