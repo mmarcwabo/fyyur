@@ -144,7 +144,7 @@ def venues():
 
 @app.route('/venues/search', methods=['POST'])
 def search_venues():
-    # TODO: implement search on artists with partial string search. Ensure it is case-insensitive.
+    # search on artists with partial string search. Ensure it is case-insensitive.
     # seach for Hop should return "The Musical Hop".
     # search for "Music" should return "The Musical Hop" and "Park Square Live Music & Coffee"
     # See https://docs.sqlalchemy.org/en/14/orm/query.html
@@ -171,13 +171,19 @@ def show_venue(venue_id):
 
     now = datetime.now()
 
-    venue.upcoming_shows = Show.query.filter(
-        Show.show_date < now, Show.venue_id == venue_id).all()
-    venue.upcoming_shows_count = len(venue.upcoming_shows)
+    past_shows_query = db.session.query(Show).join(Venue).filter(Show.venue_id == venue_id).\
+        filter(Show.show_date < now).all()
+    past_shows = []
+    for show in past_shows_query:
+        past_shows.append(show)
+    venue.past_shows_count = len(past_shows)
 
-    venue.past_shows = Show.query.filter(
-        Show.show_date > now, Show.venue_id==venue_id).all()
-    venue.past_shows_count = len(venue.past_shows)
+    upcoming_shows_query = db.session.query(Show).join(Venue).filter(Show.venue_id == venue_id).\
+        filter(Show. show_date > now).all()
+    upcoming_shows = []
+    for show in upcoming_shows_query:
+        upcoming_shows.append(show)
+    venue.upcoming_shows_count = len(upcoming_shows)
 
     return render_template('pages/show_venue.html', venue=venue)
 
@@ -193,7 +199,7 @@ def create_venue_form():
 
 @app.route('/venues/create', methods=['POST'])
 def create_venue_submission():
-    # TODO: insert form data as a new Venue record in the db, instead
+    #insert form data as a new Venue record in the db
     form = VenueForm(request.form)
     venue_location = Location(city=form.city.data, state=form.state.data)
     db.session.add(venue_location)
@@ -242,9 +248,9 @@ def delete_venue(venue_id):
 # clicking that button delete it from the db then redirect the user to the homepage
 @app.route('/venues/<venue_id>/delete', methods=['GET'])
 def delete_venue_on_click(venue_id):
-  delete_venue(venue_id)
-  flash('Venue was successfully deleted!', 'error')
-  return redirect(url_for('index'))
+    delete_venue(venue_id)
+    flash('Venue was successfully deleted!', 'error')
+    return redirect(url_for('index'))
 
 #  Artists
 #  ----------------------------------------------------------------
@@ -279,10 +285,28 @@ def search_artists():
 @app.route('/artists/<int:artist_id>')
 def show_artist(artist_id):
     # shows the artist page with the given artist_id
-    # TODO: replace with real artist data from the artist table, using artist_id
+    # retrieve artist data from the artist table, using artist_id
     artist = Artist.query.get(artist_id)
-    data = artist
-    return render_template('pages/show_artist.html', artist=data)
+    artist.city = Location.query.get(artist.location_id).city
+    artist.state = Location.query.get(artist.location_id).state
+
+    now = datetime.now()
+
+    past_shows_query = db.session.query(Show).join(Artist).filter(Show.artist_id == artist_id).\
+        filter(Show.show_date < now).all()
+    past_shows = []
+    for show in past_shows_query:
+        past_shows.append(show)
+    artist.past_shows_count = len(past_shows)
+
+    upcoming_shows_query = db.session.query(Show).join(Artist).filter(Show.artist_id == artist_id).\
+        filter(Show. show_date > now).all()
+    upcoming_shows = []
+    for show in upcoming_shows_query:
+        upcoming_shows.append(show)
+    artist.upcoming_shows_count = len(upcoming_shows)
+    
+    return render_template('pages/show_artist.html', artist=artist)
 
 #  Update
 #  ----------------------------------------------------------------
