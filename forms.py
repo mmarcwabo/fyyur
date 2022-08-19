@@ -1,9 +1,25 @@
+from ast import pattern
 from datetime import datetime
-from flask_wtf import Form
-from wtforms import StringField, SelectField, SelectMultipleField, DateTimeField, BooleanField
-from wtforms.validators import DataRequired, AnyOf, URL
+from flask_wtf import FlaskForm
+from wtforms import StringField, SelectField, SelectMultipleField, DateTimeField, BooleanField, TelField
+from wtforms.validators import DataRequired, AnyOf, URL, ValidationError, Regexp
+import phonenumbers
+import re
 
-class ShowForm(Form):
+
+# Validate phone number strings
+def validate_phone(form, phone):
+    # A general regex pattern to allow only numeric strings
+    # Thanks to coach Yacine Touati (see https://github.com/yactouat/flask_wtf_demo/)
+    # format +country code-xx-xxx-xxxx, allow only digits + and -
+    phone_number_pattern =  '^[0-9\-+]+$'
+    match = re.search(phone_number_pattern, phone.data)
+    if not match:
+        raise ValidationError(
+            'Unallowed characters found in phone number. Please format as +Country Code-xx-xxx-xxxx and use only digits [0-9]')
+
+
+class ShowForm(FlaskForm):
     artist_id = StringField(
         'artist_id'
     )
@@ -13,10 +29,11 @@ class ShowForm(Form):
     start_time = DateTimeField(
         'start_time',
         validators=[DataRequired()],
-        default= datetime.today()
+        default=datetime.today()
     )
 
-class VenueForm(Form):
+
+class VenueForm(FlaskForm):
     name = StringField(
         'name', validators=[DataRequired()]
     )
@@ -82,8 +99,8 @@ class VenueForm(Form):
     address = StringField(
         'address', validators=[DataRequired()]
     )
-    phone = StringField(
-        'phone'
+    phone = TelField(
+        'phone', validators=[validate_phone, DataRequired()]
     )
     image_link = StringField(
         'image_link'
@@ -120,15 +137,14 @@ class VenueForm(Form):
         'website_link'
     )
 
-    seeking_talent = BooleanField( 'seeking_talent' )
+    seeking_talent = BooleanField('seeking_talent')
 
     seeking_description = StringField(
         'seeking_description'
     )
 
 
-
-class ArtistForm(Form):
+class ArtistForm(FlaskForm):
     name = StringField(
         'name', validators=[DataRequired()]
     )
@@ -191,9 +207,9 @@ class ArtistForm(Form):
             ('WY', 'WY'),
         ]
     )
-    phone = StringField(
+    phone = TelField(
         # TODO implement validation logic for state
-        'phone'
+        'phone', validators=[validate_phone, DataRequired()]
     )
     image_link = StringField(
         'image_link'
@@ -221,19 +237,18 @@ class ArtistForm(Form):
             ('Soul', 'Soul'),
             ('Other', 'Other'),
         ]
-     )
+    )
     facebook_link = StringField(
         # TODO implement enum restriction
         'facebook_link', validators=[URL()]
-     )
+    )
 
     website_link = StringField(
         'website_link'
-     )
+    )
 
-    seeking_venue = BooleanField( 'seeking_venue' )
+    seeking_venue = BooleanField('seeking_venue')
 
     seeking_description = StringField(
-            'seeking_description'
-     )
-
+        'seeking_description'
+    )

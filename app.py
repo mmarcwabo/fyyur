@@ -13,18 +13,23 @@ import logging
 from logging import Formatter, FileHandler
 from flask_wtf import Form
 from forms import *
-from flask_migrate import Migrate
 from models import app, db, Artist, Venue, Show, Location
-#----------------------------------------------------------------------------#
-# App Config.
-#----------------------------------------------------------------------------#
+from flask_migrate import Migrate
+from flask_wtf.csrf import CSRFProtect
+import re
 
-moment = Moment(app)
+# for csrf usage, special thanks to coach Yacine, see https://github.com/yactouat/flask_wtf_demo
+# and https://flask-wtf.readthedocs.io/en/latest/api/#module-flask_wtf.csrf
+csrf = CSRFProtect(app)
+csrf.init_app(app)
+
 migrate = Migrate(app, db)
+moment = Moment(app)
 
 #----------------------------------------------------------------------------#
 # Filters.
 #----------------------------------------------------------------------------#
+
 
 def format_datetime(value, format='medium'):
     date = dateutil.parser.parse(value)
@@ -33,6 +38,19 @@ def format_datetime(value, format='medium'):
     elif format == 'medium':
         format = "EE MM, dd, y h:mma"
     return babel.dates.format_datetime(date, format, locale='en')
+
+
+def format_genres(value):
+    # display genres properly
+    # first remove the { and } that surround venue genre
+    value_ = value.replace('{', '')
+    value_ = value_.replace('}', '')
+    # then return an array of genres
+    if re.search(',', value_):
+        return value_.split(',')
+    else:
+        return [value_]
+
 
 
 app.jinja_env.filters['datetime'] = format_datetime
@@ -95,6 +113,8 @@ def show_venue(venue_id):
 
     now = datetime.now()
 
+    venue.genres_ = format_genres(venue.venue_genres)
+
     past_shows_query = db.session.query(Show).join(Venue).filter(Show.venue_id == venue_id).\
         filter(Show.show_date < now).all()
     past_shows = []
@@ -123,31 +143,39 @@ def create_venue_form():
 
 @app.route('/venues/create', methods=['POST'])
 def create_venue_submission():
-    #insert form data as a new Venue record in the db
+    # insert form data as a new Venue record in the db
     form = VenueForm(request.form)
-    venue_location = Location(city=form.city.data, state=form.state.data)
-    db.session.add(venue_location)
-    db.session.commit()
 
-    # get this inserted id from database
-    venue = Venue(
-        name=form.name.data, location_id=venue_location.id,
-        address=form.address.data, phone=form.phone.data, image_link=form.image_link.data,
-        venue_genres=form.genres.data, facebook_link=form.facebook_link.data,
-        venue_website=form.website_link.data, seeking_talents=form.seeking_talent.data,
-        seeking_description=form.seeking_description.data
-    )
-    db.session.add(venue)
-    db.session.commit()
+    if form.validate_on_submit():
+        try:
+            venue_location = Location(
+                city=form.city.data, state=form.state.data)
+            db.session.add(venue_location)
+            db.session.commit()
 
-    # TODO: modify data to be the data object returned from db insertion
+            # get this inserted id from database
+            venue = Venue(
+                name=form.name.data, location_id=venue_location.id, address=form.address.data,
+                phone=form.phone.data, image_link=form.image_link.data, venue_genres=form.genres.data,
+                facebook_link=form.facebook_link.data, venue_website=form.website_link.data,
+                seeking_talents=form.seeking_talent.data, seeking_description=form.seeking_description.data
+            )
+            db.session.add(venue)
+            db.session.commit()
 
-    # on successful db insert, flash success
-    flash('Venue ' + form.name.data + ' was successfully listed!')
-    # TODO: on unsuccessful db insert, flash an error instead.
-    # flash(u'An error occurred. Venue ' + form.name.data + ' could not be listed.', 'error')
-    # see: http://flask.pocoo.org/docs/1.0/patterns/flashing/
-    return render_template('pages/home.html')
+            # on successful db insert, flash success
+            flash('Venue ' + form.name.data + ' was successfully listed!')
+            return render_template('pages/home.html')
+        except:
+            db.session.rollback()
+            db.session.close()
+            flash('An error occured. ' + form.name.data + ' was not listed!')
+            return render_template('forms/new_venue.html', form=form)
+    else:
+        flash('One or more errors found!')
+        flash(form.errors)
+            
+        return render_template('forms/new_venue.html', form=form)
 
 
 @app.route('/venues/<venue_id>', methods=['DELETE'])
@@ -229,7 +257,7 @@ def show_artist(artist_id):
     for show in upcoming_shows_query:
         upcoming_shows.append(show)
     artist.upcoming_shows_count = len(upcoming_shows)
-    
+
     return render_template('pages/show_artist.html', artist=artist)
 
 #  Update

@@ -10,8 +10,8 @@
 			ID: {{ venue.id }}
 		</p>
 		<div class="genres">
-			{% for genre in venue.genres %}
-			<span class="genre">{{ genre }}</span>
+			{% for genre in venue.genres_ %}
+				<span class="genre">{{ genre }}</span>			
 			{% endfor %}
 		</div>
 		<p>
