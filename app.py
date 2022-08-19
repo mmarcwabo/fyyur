@@ -100,7 +100,7 @@ def search_venues():
 @app.route('/venues/<int:venue_id>')
 def show_venue(venue_id):
     # shows the venue page with the given venue_id
-    # TODO: replace with real venue data from the venues table, using venue_id
+    # real venue data from the venues table, using venue_id
     venue = Venue.query.get(venue_id)
     venue.city = Location.query.get(venue.location_id).city
     venue.state = Location.query.get(venue.location_id).state
@@ -152,12 +152,22 @@ def create_venue_submission():
         try:
             venue_location = Location(
                 city=form.city.data, state=form.state.data)
-            db.session.add(venue_location)
-            db.session.commit()
 
-            # get this inserted id from database
+            # if a location already exists, use it instead
+            existing_venue_location = Location.query.filter(Location.city == form.city.data).\
+                filter(Location.state == form.state.data).first()
+
+            if (existing_venue_location):
+                venue_location_id = existing_venue_location.id
+            else:
+                # else add the new location in the database, then use it for the venue
+                db.session.add(venue_location)
+                db.session.commit()
+                venue_location_id = venue_location.id
+
+            # insert the new venue to database
             venue = Venue(
-                name=form.name.data, location_id=venue_location.id, address=form.address.data,
+                name=form.name.data, location_id=venue_location_id, address=form.address.data,
                 phone=form.phone.data, image_link=form.image_link.data, venue_genres=form.genres.data,
                 facebook_link=form.facebook_link.data, venue_website=form.website_link.data,
                 seeking_talents=form.seeking_talent.data, seeking_description=form.seeking_description.data
@@ -203,7 +213,7 @@ def delete_venue(venue_id):
 @app.route('/venues/<venue_id>/delete', methods=['GET'])
 def delete_venue_on_click(venue_id):
     delete_venue(venue_id)
-    flash('Venue was successfully deleted!', 'error')
+    flash('Venue was successfully deleted!')
     return redirect(url_for('index'))
 
 #  Artists
@@ -284,13 +294,13 @@ def edit_artist(artist_id):
     artist = Artist.query.get(artist_id)
     location = Location.query.get(artist.location_id)
     artist = {
-        "id": artist.id,
+        "id": artist_id,
         "name": artist.name,
-        "genres": [artist.artist_genres],
+        "genres": artist.artist_genres,
         "city": location.city,
         "state": location.state,
         "phone": artist.phone,
-        "website": artist.artist_website,
+        "website_link": artist.artist_website,
         "facebook_link": artist.facebook_link,
         "seeking_venue": artist.seeking_venues,
         "seeking_description": artist.seeking_description,
@@ -304,26 +314,46 @@ def edit_artist(artist_id):
 def edit_artist_submission(artist_id):
     # TODO: take values from the form submitted, and update existing
     # artist record with ID <artist_id> using the new attributes
-    artist = Artist.query.get(artist_id)
+
     form = ArtistForm(request.form)
 
-    artist.name = form.name.data
-    artist.phone = form.phone.data
-    artist.image_link = form.image_link.data
-    artist.genres = form.genres.data
-    artist.facebook_link = form.facebook_link.data
-    artist.artist_website = form.website_link.data
-    artist.seeking_venues = form.seeking_venue.data
-    artist.seeking_description = form.seeking_description.data
-    # Update artist location
-    artist_location = Location.query().filter(Location.state == form.state.data,
-                                              Location.city == form.city.data).first()
-    if artist_location:
-        artist.location_id = artist_location.id
+    if form.validate_on_submit():
+        try:
+            artist = Artist.query.get(artist_id)
+            # Update artist location
+            # # If the new location exists, use it instead
+            artist_location = Location.query.filter(Location.state == form.state.data).\
+                filter(Location.city == form.city.data).first()
+            if artist_location:
+                artist.location_id = artist_location.id
+            else:
+                # else, add it first to locations, then use it
+                artist_location = Location(
+                    city=form.city.data, state=form.state.data)
+                db.session.add(artist_location)
+                db.session.commit()
+                artist.location_id = artist_location.id
 
-    db.session.commit()
-
-    return redirect(url_for('show_artist', artist_id=artist_id))
+            artist.name = form.name.data
+            artist.phone = form.phone.data
+            artist.image_link = form.image_link.data
+            artist.genres = form.genres.data
+            artist.facebook_link = form.facebook_link.data
+            artist.artist_website = form.website_link.data
+            artist.seeking_venues = form.seeking_venue.data
+            artist.seeking_description = form.seeking_description.data
+            db.session.commit()
+            # on successful db update, flash success
+            flash('Artist ' + form.name.data + ' was successfully updated!')
+            return render_template('pages/show_artist.html', artist=artist)
+        except:
+            db.session.rollback()
+            db.session.close()
+            flash('An error occured. Artist ' +
+                  form.name.data + ' was not updated!')
+            return render_template('forms/new_artist.html', form=form)
+    else:
+        return redirect(url_for('show_artist', artist_id=artist_id))
 
 
 @app.route('/venues/<int:venue_id>/edit', methods=['GET'])
@@ -334,7 +364,7 @@ def edit_venue(venue_id):
     venue = {
         "id": venue.id,
         "name": venue.name,
-        "genres": [venue.venue_genres],
+        "genres": venue.venue_genres,
         "address": venue.address,
         "city": location.city,
         "state": location.state,
@@ -353,29 +383,49 @@ def edit_venue(venue_id):
 def edit_venue_submission(venue_id):
     # TODO: take values from the form submitted, and update existing
     # venue record with ID <venue_id> using the new attributes
-    venue = Venue.query.get(venue_id)
+
     form = VenueForm(request.form)
 
-    venue.name = form.name.data
-    venue.location_id = venue_location.id
-    venue.address = form.address.data
-    venue.phone = form.phone.data
-    venue.image_link = form.image_link.data
-    venue.venue_genres = form.genres.data
-    venue.facebook_link = form.facebook_link.data
-    venue.venue_website = form.website_link.data
-    venue.seeking_talents = form.seeking_talent.data
-    venue.seeking_description = form.seeking_description.data
+    if form.validate_on_submit():
+        try:
+            venue = Venue.query.get(venue_id)
+            # Update venue location
+            # # If the new location exists, use it instead
+            venue_location = Location.query.filter(Location.state == form.state.data).\
+                filter(Location.city == form.city.data).first()
+            if venue_location:
+                venue.location_id = venue_location.id
+            else:
+                # else, add it first to locations, then use it
+                venue_location = Location(
+                    city=form.city.data, state=form.state.data)
+                db.session.add(venue_location)
+                db.session.commit()
+                venue.location_id = venue_location.id
 
-    # Update artist location
-    venue_location = Location.query(Location).filter(
-        Location.state == form.state.data and Location.city == form.city.data)
-    if venue_location:
-        venue.location_id = venue_location.id
+                venue.name = form.name.data
+                venue.location_id = venue_location.id
+                venue.address = form.address.data
+                venue.phone = form.phone.data
+                venue.image_link = form.image_link.data
+                venue.venue_genres = form.genres.data
+                venue.facebook_link = form.facebook_link.data
+                venue.venue_website = form.website_link.data
+                venue.seeking_talents = form.seeking_talent.data
+                venue.seeking_description = form.seeking_description.data
 
-    db.session.commit()
+                db.session.commit()
+                # on successful db update, flash success
+                flash('Venue ' + form.name.data + ' was successfully updated!')
+        except:
+            db.session.rollback()
+            db.session.close()
+            flash('An error occured. Venue ' +
+                  form.name.data + ' was not updated!')
+            return render_template('forms/new_venue.html', form=form)
 
-    return redirect(url_for('show_venue', venue_id=venue_id))
+    else:
+        return redirect(url_for('show_venue', venue_id=venue_id))
 
 #  Create Artist
 #  ----------------------------------------------------------------
@@ -393,25 +443,50 @@ def create_artist_submission():
     # TODO: insert form data as a new Venue record in the db, instead
     # TODO: modify data to be the data object returned from db insertion
     form = ArtistForm(request.form)
-    artist_location = Location(city=form.city.data, state=form.state.data)
-    db.session.add(artist_location)
-    db.session.commit()
 
-    # get this inserted id from database add the venue
-    artist = Artist(
-        name=form.name.data, phone=form.phone.data, image_link=form.image_link.data,
-        artist_genres=form.genres.data, facebook_link=form.facebook_link.data,
-        artist_website=form.website_link.data, seeking_venues=form.seeking_venue.data,
-        seeking_description=form.seeking_description.data, location_id=artist_location.id
-    )
-    db.session.add(artist)
-    db.session.commit()
+    if form.validate_on_submit:
 
-    # on successful db insert, flash success
-    flash('Artist ' + form.name.data + ' was successfully listed!')
-    # TODO: on unsuccessful db insert, flash an error instead.
-    # e.g., flash('An error occurred. Artist ' + data.name + ' could not be listed.')
-    return render_template('pages/home.html')
+        try:
+            artist_location = Location(state = form.state.data, city = form.state.data)
+            # If the new location exists, use it instead
+            existing_artist_location = Location.query.filter(Location.state == form.state.data).\
+                filter(Location.city == form.city.data).first()
+            
+            if existing_artist_location:
+                artist_location_id = existing_artist_location.id
+            else:
+                # else, add it first to locations, then use it
+                artist_location = Location(
+                    city=form.city.data, state=form.state.data)
+                db.session.add(artist_location)
+                db.session.commit()
+                artist_location_id = artist_location.id
+
+            # get this inserted id from database add the venue
+            artist = Artist(
+                name=form.name.data, phone=form.phone.data, image_link=form.image_link.data,
+                artist_genres=form.genres.data, facebook_link=form.facebook_link.data,
+                artist_website=form.website_link.data, seeking_venues=form.seeking_venue.data,
+                seeking_description=form.seeking_description.data, location_id=artist_location_id
+            )
+            db.session.add(artist)
+            db.session.commit()
+
+            # on successful db insert, flash success
+            flash('Artist ' + form.name.data + ' was successfully listed!')
+            return render_template('pages/home.html')
+
+        except:
+            db.session.rollback()
+            db.session.close()
+            flash(form.errors)
+            flash('Artist was not listed. An error occured!')
+            return render_template('forms/new_artist.html', form=form)
+
+    else:
+        flash('One or more errors found!')
+        flash(form.errors)
+        return render_template('forms/new_artist.html', form=form)
 
 
 #  Shows
@@ -452,8 +527,7 @@ def search_shows():
         show.start_time = show.show_date.isoformat()
 
         shows.append(show)
-    
-    
+
     response = {
         "count": count,
         "data": shows
@@ -473,16 +547,26 @@ def create_show_submission():
     # called to create new shows in the db, upon submitting new show listing form
     # TODO: insert form data as a new Show record in the db, instead
     form = ShowForm(request.form)
-    show = Show(artist_id=form.artist_id.data,
+    if form.validate_on_submit():
+        try:
+            show = Show(artist_id=form.artist_id.data,
                 venue_id=form.venue_id.data, show_date=form.start_time.data)
-    db.session.add(show)
-    db.session.commit()
-    # on successful db insert, flash success
-    flash('Show was successfully listed!')
-    # TODO: on unsuccessful db insert, flash an error instead.
-    # e.g., flash('An error occurred. Show could not be listed.')
-    # see: http://flask.pocoo.org/docs/1.0/patterns/flashing/
-    return render_template('pages/home.html')
+            db.session.add(show)
+            db.session.commit()
+            # on successful db insert, flash success
+            flash('Show was successfully listed!')
+            return render_template('pages/home.html')
+        except:
+            db.session.rollback()
+            db.session.close()
+            flash(form.errors)
+            flash('An error occured. Show cannot be listed')
+            return render_template('forms/new_show.html', form=form)
+    else:    
+        # TODO: on unsuccessful db insert, flash an error instead.
+        # e.g., flash('An error occurred. Show could not be listed.')
+        # see: http://flask.pocoo.org/docs/1.0/patterns/flashing/
+        return render_template('pages/home.html')
 
 
 @app.errorhandler(404)
