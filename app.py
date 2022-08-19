@@ -3,11 +3,10 @@
 #----------------------------------------------------------------------------#
 
 import datetime
-import json
 import sys
 import dateutil.parser
 import babel
-from flask import render_template, request, Response, flash, redirect, url_for
+from flask import render_template, request, flash, redirect, url_for
 from flask_moment import Moment
 import logging
 from logging import Formatter, FileHandler
@@ -70,12 +69,13 @@ def index():
 @app.route('/venues')
 def venues():
     # Show venues per location as locations has a venue list
+    form = VenueForm()
     venues = Location.query.all()
     for venue_location in venues:
         venue_location.venues_list = Venue.query.filter_by(
             location_id=venue_location.id).order_by('id').all()
 
-    return render_template('pages/venues.html', areas=venues)
+    return render_template('pages/venues.html', areas=venues, form=form)
 
 
 @app.route('/venues/search', methods=['POST'])
@@ -85,22 +85,24 @@ def search_venues():
     # search for "Music" should return "The Musical Hop" and "Park Square Live Music & Coffee"
     # See https://docs.sqlalchemy.org/en/14/orm/query.html
     # Thanks to https://stackoverflow.com/questions/3325467/
+    form = VenueForm()
     search_term = request.form.get('search_term', '')
     search = "%{}%".format(search_term)
-    venues = Venue.query.filter(Venue.name.like(search))
-    count = len(venues.all())
+    venues = Venue.query.filter(Venue.name.ilike(search)).all()
+    count = len(venues)
 
     response = {
         "count": count,
         "data": venues
     }
-    return render_template('pages/search_venues.html', results=response)
+    return render_template('pages/search_venues.html', results=response, form=form, search_term=search_term)
 
 
 @app.route('/venues/<int:venue_id>')
 def show_venue(venue_id):
     # shows the venue page with the given venue_id
     # real venue data from the venues table, using venue_id
+    form = VenueForm()
     venue = Venue.query.get(venue_id)
     venue.city = Location.query.get(venue.location_id).city
     venue.state = Location.query.get(venue.location_id).state
@@ -131,7 +133,7 @@ def show_venue(venue_id):
     venue.upcoming_shows = upcoming_shows
     venue.upcoming_shows_count = len(upcoming_shows)
 
-    return render_template('pages/show_venue.html', venue=venue)
+    return render_template('pages/show_venue.html', venue=venue, form=form)
 
 #  Create Venue
 #  ----------------------------------------------------------------
@@ -223,8 +225,9 @@ def delete_venue_on_click(venue_id):
 @app.route('/artists')
 def artists():
     # TODO: replace with real data returned from querying the database
+    form = ArtistForm()
     data = Artist.query.all()
-    return render_template('pages/artists.html', artists=data)
+    return render_template('pages/artists.html', artists=data, form=form)
 
 
 @app.route('/artists/search', methods=['POST'])
@@ -234,22 +237,24 @@ def search_artists():
     # search for "band" should return "The Wild Sax Band".
     # See https://docs.sqlalchemy.org/en/14/orm/query.html
     # Thanks to https://stackoverflow.com/questions/3325467/
+    form = ArtistForm()
     search_term = request.form.get('search_term', '')
     search = "%{}%".format(search_term)
-    artists = Artist.query.filter(Artist.name.like(search))
-    count = len(artists.all())
+    artists = Artist.query.filter(Artist.name.ilike(search)).all()
+    count = len(artists)
 
     response = {
         "count": count,
         "data": artists
     }
-    return render_template('pages/search_artists.html', results=response)
+    return render_template('pages/search_artists.html', results=response, form=form, search_term=search_term)
 
 
 @app.route('/artists/<int:artist_id>')
 def show_artist(artist_id):
     # shows the artist page with the given artist_id
     # retrieve artist data from the artist table, using artist_id
+    form = ArtistForm()
     artist = Artist.query.get(artist_id)
     artist.city = Location.query.get(artist.location_id).city
     artist.state = Location.query.get(artist.location_id).state
@@ -282,7 +287,7 @@ def show_artist(artist_id):
     artist.upcoming_shows = upcoming_shows
     artist.upcoming_shows_count = len(upcoming_shows)
 
-    return render_template('pages/show_artist.html', artist=artist)
+    return render_template('pages/show_artist.html', artist=artist, form=form)
 
 #  Update
 #  ----------------------------------------------------------------
@@ -345,6 +350,9 @@ def edit_artist_submission(artist_id):
             db.session.commit()
             # on successful db update, flash success
             flash('Artist ' + form.name.data + ' was successfully updated!')
+            # for artist display purpose
+            artist.city = Location.query.get(artist.location_id).city
+            artist.state = Location.query.get(artist.location_id).state
             return render_template('pages/show_artist.html', artist=artist)
         except:
             db.session.rollback()
@@ -359,7 +367,7 @@ def edit_artist_submission(artist_id):
 @app.route('/venues/<int:venue_id>/edit', methods=['GET'])
 def edit_venue(venue_id):
     form = VenueForm()
-    venue = Artist.query.get(venue_id)
+    venue = Venue.query.get(venue_id)
     location = Location.query.get(venue.location_id)
     venue = {
         "id": venue.id,
@@ -371,7 +379,7 @@ def edit_venue(venue_id):
         "phone": venue.phone,
         "website": venue.venue_website,
         "facebook_link": venue.facebook_link,
-        "seeking_talent": venue.seeking_talent,
+        "seeking_talent": venue.seeking_talents,
         "seeking_description": venue.seeking_description,
         "image_link": venue.image_link
     }
@@ -403,20 +411,26 @@ def edit_venue_submission(venue_id):
                 db.session.commit()
                 venue.location_id = venue_location.id
 
-                venue.name = form.name.data
-                venue.location_id = venue_location.id
-                venue.address = form.address.data
-                venue.phone = form.phone.data
-                venue.image_link = form.image_link.data
-                venue.venue_genres = form.genres.data
-                venue.facebook_link = form.facebook_link.data
-                venue.venue_website = form.website_link.data
-                venue.seeking_talents = form.seeking_talent.data
-                venue.seeking_description = form.seeking_description.data
+            venue.name = form.name.data
+            venue.address = form.address.data
+            venue.phone = form.phone.data
+            venue.image_link = form.image_link.data
+            venue.venue_genres = form.genres.data
+            venue.facebook_link = form.facebook_link.data
+            venue.venue_website = form.website_link.data
+            venue.seeking_talents = form.seeking_talent.data
+            venue.seeking_description = form.seeking_description.data
 
-                db.session.commit()
-                # on successful db update, flash success
-                flash('Venue ' + form.name.data + ' was successfully updated!')
+            db.session.commit()
+            # on successful db update, flash success
+
+            # For venue display purpose on show_venue page
+            venue.genres_=format_genres(venue.genres)
+            venue.city = Location.query.get(venue.location_id).city
+            venue.state = Location.query.get(venue.location_id).state
+
+            flash('Venue ' + form.name.data + ' was successfully updated!')
+            return render_template('pages/show_venue.html', venue=venue)
         except:
             db.session.rollback()
             db.session.close()
@@ -496,6 +510,7 @@ def create_artist_submission():
 def shows():
     # displays list of shows at /shows
     # TODO: replace with real venues data.
+    form = ShowForm()
     shows = Show.query.all()
 
     for show in shows:
@@ -504,7 +519,7 @@ def shows():
         show.artist_image_link = Artist.query.get(show.artist_id).image_link
         show.start_time = show.show_date.isoformat()
 
-    return render_template('pages/shows.html', shows=shows)
+    return render_template('pages/shows.html', shows=shows, form=form)
 
 
 @app.route('/shows/search', methods=['POST'])
@@ -514,25 +529,34 @@ def search_shows():
     # search for "Music" should return "The Musical Hop" and "Park Square Live Music & Coffee"
     # See https://docs.sqlalchemy.org/en/14/orm/query.html
     # Thanks to https://stackoverflow.com/questions/3325467/
+    form = ShowForm()
     search_term = request.form.get('search_term', '')
     search = "%{}%".format(search_term)
-    shows_ = Show.query.filter(Show.name.like(search))
-    count = len(shows_.all())
+    artist_shows = db.session.query(Show).join(Artist).filter(Show.artist_id == Artist.id).\
+        filter(Artist.name.ilike(search)).all()
+    venue_shows = db.session.query(Show).join(Venue).filter(Show.artist_id == Venue.id).\
+        filter(Venue.name.ilike(search)).all()
 
     shows = []
 
-    for show in shows_:
+    for show in artist_shows:
         show.artist_name = Artist.query.get(show.artist_id).name
         show.venue_name = Venue.query.get(show.venue_id).name
         show.start_time = show.show_date.isoformat()
-
         shows.append(show)
+    for show in venue_shows:
+        show.artist_name = Artist.query.get(show.artist_id).name
+        show.venue_name = Venue.query.get(show.venue_id).name
+        show.start_time = show.show_date.isoformat()
+        shows.append(show)
+
+    count = len(shows)
 
     response = {
         "count": count,
         "data": shows
     }
-    return render_template('pages/search_shows.html', results=response)
+    return render_template('pages/search_shows.html', results=response, form=form, search_term=search_term)
 
 
 @app.route('/shows/create')
