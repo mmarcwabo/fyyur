@@ -1,9 +1,7 @@
-from ast import pattern
 from datetime import datetime
 from flask_wtf import FlaskForm
 from wtforms import StringField, SelectField, SelectMultipleField, DateTimeField, BooleanField, TelField
-from wtforms.validators import DataRequired, AnyOf, URL, ValidationError, Regexp
-import phonenumbers
+from wtforms.validators import DataRequired, AnyOf, URL, ValidationError
 import re
 
 

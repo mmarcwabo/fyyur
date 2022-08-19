@@ -52,7 +52,6 @@ def format_genres(value):
         return [value_]
 
 
-
 app.jinja_env.filters['datetime'] = format_datetime
 
 #----------------------------------------------------------------------------#
@@ -70,18 +69,13 @@ def index():
 
 @app.route('/venues')
 def venues():
-    # num_upcoming_shows should be aggregated based on number of upcoming shows per venue.
+    # Show venues per location as locations has a venue list
     venues = Location.query.all()
     for venue_location in venues:
         venue_location.venues_list = Venue.query.filter_by(
             location_id=venue_location.id).order_by('id').all()
 
-    now = datetime.now()
-    upcoming_shows_count = 0
-    upcoming_shows = Show.query.filter(Show.show_date < now).all()
-    upcoming_shows_count = len(upcoming_shows)
-
-    return render_template('pages/venues.html', areas=venues, num_upcoming_shows=upcoming_shows_count)
+    return render_template('pages/venues.html', areas=venues)
 
 
 @app.route('/venues/search', methods=['POST'])
@@ -119,14 +113,22 @@ def show_venue(venue_id):
         filter(Show.show_date < now).all()
     past_shows = []
     for show in past_shows_query:
+        show.artist_name = Artist.query.get(show.artist_id).name
+        show.artist_image_link = Artist.query.get(show.artist_id).image_link
+        show.start_time = show.show_date.isoformat()
         past_shows.append(show)
+    venue.past_shows = past_shows
     venue.past_shows_count = len(past_shows)
 
     upcoming_shows_query = db.session.query(Show).join(Venue).filter(Show.venue_id == venue_id).\
         filter(Show. show_date > now).all()
     upcoming_shows = []
     for show in upcoming_shows_query:
+        show.artist_name = Artist.query.get(show.artist_id).name
+        show.artist_image_link = Artist.query.get(show.artist_id).image_link
+        show.start_time = show.show_date.isoformat()
         upcoming_shows.append(show)
+    venue.upcoming_shows = upcoming_shows
     venue.upcoming_shows_count = len(upcoming_shows)
 
     return render_template('pages/show_venue.html', venue=venue)
@@ -174,7 +176,7 @@ def create_venue_submission():
     else:
         flash('One or more errors found!')
         flash(form.errors)
-            
+
         return render_template('forms/new_venue.html', form=form)
 
 
@@ -244,18 +246,30 @@ def show_artist(artist_id):
 
     now = datetime.now()
 
+    artist.genres_ = format_genres(artist.artist_genres)
+
     past_shows_query = db.session.query(Show).join(Artist).filter(Show.artist_id == artist_id).\
         filter(Show.show_date < now).all()
     past_shows = []
     for show in past_shows_query:
+        show.venue_name = Venue.query.get(show.venue_id).name
+        show.venue_image_link = Venue.query.get(show.venue_id).image_link
+        # datetime format accepts only strings and char stream, not datetime
+        # so converting database datetime to string
+        show.start_time = show.show_date.isoformat()
         past_shows.append(show)
+    artist.past_shows = past_shows
     artist.past_shows_count = len(past_shows)
 
     upcoming_shows_query = db.session.query(Show).join(Artist).filter(Show.artist_id == artist_id).\
         filter(Show. show_date > now).all()
     upcoming_shows = []
     for show in upcoming_shows_query:
+        show.venue_name = Venue.query.get(show.venue_id).name
+        show.venue_image_link = Venue.query.get(show.venue_id).image_link
+        show.start_time = show.show_date.isoformat()
         upcoming_shows.append(show)
+    artist.upcoming_shows = upcoming_shows
     artist.upcoming_shows_count = len(upcoming_shows)
 
     return render_template('pages/show_artist.html', artist=artist)
@@ -413,7 +427,7 @@ def shows():
         show.venue_name = Venue.query.get(show.venue_id).name
         show.artist_name = Artist.query.get(show.artist_id).name
         show.artist_image_link = Artist.query.get(show.artist_id).image_link
-        show.start_time = Show.show_date
+        show.start_time = show.show_date.isoformat()
 
     return render_template('pages/shows.html', shows=shows)
 
