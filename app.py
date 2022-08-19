@@ -432,6 +432,35 @@ def shows():
     return render_template('pages/shows.html', shows=shows)
 
 
+@app.route('/shows/search', methods=['POST'])
+def search_shows():
+    # search on artists with partial string search. Ensure it is case-insensitive.
+    # seach for Hop should return "The Musical Hop".
+    # search for "Music" should return "The Musical Hop" and "Park Square Live Music & Coffee"
+    # See https://docs.sqlalchemy.org/en/14/orm/query.html
+    # Thanks to https://stackoverflow.com/questions/3325467/
+    search_term = request.form.get('search_term', '')
+    search = "%{}%".format(search_term)
+    shows_ = Show.query.filter(Show.name.like(search))
+    count = len(shows_.all())
+
+    shows = []
+
+    for show in shows_:
+        show.artist_name = Artist.query.get(show.artist_id).name
+        show.venue_name = Venue.query.get(show.venue_id).name
+        show.start_time = show.show_date.isoformat()
+
+        shows.append(show)
+    
+    
+    response = {
+        "count": count,
+        "data": shows
+    }
+    return render_template('pages/search_shows.html', results=response)
+
+
 @app.route('/shows/create')
 def create_shows():
     # renders form. do not touch.
